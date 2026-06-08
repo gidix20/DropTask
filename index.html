@@ -1549,7 +1549,7 @@ document.addEventListener("click", e => {
   }
 });
 
-async function submitFeedback() {
+function submitFeedback() {
   const good    = document.getElementById("fb-good").value.trim();
   const improve = document.getElementById("fb-improve").value.trim();
   const other   = document.getElementById("fb-other").value.trim();
@@ -1561,41 +1561,32 @@ async function submitFeedback() {
     return;
   }
 
+  document.getElementById("fb-error").style.display = "none";
+
+  // Populate hidden native form and submit to invisible iframe (no CORS issues)
+  document.getElementById("fb-hidden-name").value    = name || "Anonymous";
+  document.getElementById("fb-hidden-good").value    = good;
+  document.getElementById("fb-hidden-improve").value = improve;
+  document.getElementById("fb-hidden-other").value   = other;
+
   const submitBtn = document.getElementById("btn-fb-submit");
   submitBtn.disabled = true;
   submitBtn.textContent = "Sending…";
-  document.getElementById("fb-error").style.display = "none";
 
-  try {
-    const fd = new FormData();
-    fd.append("name",    name || "Anonymous");
-    fd.append("good",    good);
-    fd.append("improve", improve);
-    fd.append("other",   other);
-    const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
-      method: "POST",
-      headers: { "Accept": "application/json" },
-      body: fd
+  // Listen for iframe load = Formspree responded
+  const iframe = document.getElementById("fb-iframe");
+  iframe.onload = () => {
+    document.getElementById("fb-form").style.display = "none";
+    document.getElementById("fb-success").style.display = "block";
+    ["fb-name","fb-good","fb-improve","fb-other"].forEach(id => {
+      document.getElementById(id).value = "";
     });
-    const data = await res.json();
-    if (data.ok) {
-      document.getElementById("fb-form").style.display = "none";
-      document.getElementById("fb-success").style.display = "block";
-      // Clear fields
-      ["fb-name","fb-good","fb-improve","fb-other"].forEach(id => {
-        document.getElementById(id).value = "";
-      });
-    } else {
-      throw new Error("not ok");
-    }
-  } catch(err) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Send ↗";
-    const msg = err && err.message ? err.message : String(err);
-    document.getElementById("fb-error").textContent = "Error: " + msg;
-    document.getElementById("fb-error").style.display = "block";
-    console.error("Formspree error:", err);
-  }
+    iframe.onload = null;
+  };
+
+  document.getElementById("fb-native-form").submit();
 }
 
 </script>
@@ -1638,5 +1629,19 @@ async function submitFeedback() {
   </div>
 </div>
 
+
+<!-- Hidden iframe + native form for Formspree (avoids CORS fetch issues) -->
+<iframe id="fb-iframe" name="fb-iframe" style="display:none"></iframe>
+<form id="fb-native-form"
+      action="https://formspree.io/f/mdavgvoj"
+      method="POST"
+      target="fb-iframe"
+      style="display:none">
+  <input type="hidden" name="_subject" value="Drop Task Feedback">
+  <input type="hidden" id="fb-hidden-name"    name="name">
+  <input type="hidden" id="fb-hidden-good"    name="What is working well">
+  <input type="hidden" id="fb-hidden-improve" name="What could be better">
+  <input type="hidden" id="fb-hidden-other"   name="Other thoughts">
+</form>
 </body>
 </html>
