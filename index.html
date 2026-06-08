@@ -547,12 +547,63 @@
       font-size: 11px; color: var(--urgent);
       margin-top: 6px; display: none; text-align: center;
     }
+
+    /* ── About ── */
+    .btn-about {
+      background: none; border: 1px solid #2a2a2a; color: #555;
+      width: 20px; height: 20px; border-radius: 50%;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; flex-shrink: 0;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .btn-about:hover { border-color: var(--urgent); color: var(--urgent); }
+
+    #about-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); z-index: 200;
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    #about-overlay.open { display: flex; }
+
+    .about-modal {
+      background: #161616; border: 1px solid #282828;
+      border-radius: 16px; padding: 28px; width: 360px;
+      max-width: 92vw;
+    }
+    .about-logo {
+      font-size: 22px; font-weight: 800; letter-spacing: 0.08em;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+    .about-modal p {
+      font-size: 13px; color: #aaa; line-height: 1.6; margin-bottom: 10px;
+    }
+    .about-modal p:last-of-type { margin-bottom: 20px; }
+    .about-modal ul {
+      list-style: none; margin-bottom: 20px;
+    }
+    .about-modal ul li {
+      font-size: 12px; color: #888; padding: 5px 0;
+      border-bottom: 1px solid #1e1e1e; display: flex; gap: 8px;
+    }
+    .about-modal ul li:last-child { border-bottom: none; }
+    .about-modal ul li span:first-child { color: var(--urgent); flex-shrink: 0; }
+    .btn-about-close {
+      width: 100%; background: #1e1e1e; color: #666;
+      border: none; padding: 10px; border-radius: 8px;
+      font-size: 13px; cursor: pointer; touch-action: manipulation;
+    }
+    .btn-about-close:hover { background: #252525; color: #999; }
   </style>
 </head>
 <body>
 
 <header>
-  <div class="logo"><span class="logo-drop">DROP</span><span class="logo-task">TASK</span></div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="logo"><span class="logo-drop">DROP</span><span class="logo-task">TASK</span></div>
+    <button class="btn-about" onclick="toggleAbout()" title="About Drop Task">?</button>
+  </div>
   <div class="header-right">
     <span id="task-count"></span>
     <button class="btn-add" id="btn-add-task" onclick="openModal()">+ Add Task</button>
@@ -1589,6 +1640,17 @@ function submitFeedback() {
   document.getElementById("fb-native-form").submit();
 }
 
+
+// ─────────────────────────────────────────────
+//  About
+// ─────────────────────────────────────────────
+function toggleAbout() {
+  document.getElementById("about-overlay").classList.toggle("open");
+}
+function aboutOverlayClick(e) {
+  if (e.target === document.getElementById("about-overlay")) toggleAbout();
+}
+
 </script>
 
 <!-- Feedback button -->
@@ -1643,5 +1705,22 @@ function submitFeedback() {
   <input type="hidden" id="fb-hidden-improve" name="What could be better">
   <input type="hidden" id="fb-hidden-other"   name="Other thoughts">
 </form>
+
+<!-- About modal -->
+<div id="about-overlay" onclick="aboutOverlayClick(event)">
+  <div class="about-modal">
+    <div class="about-logo"><span style="color:var(--urgent)">DROP</span><span style="color:var(--text)">TASK</span></div>
+    <p>A task manager where urgency is visual. Tasks fall down the screen in real time — the closer the deadline, the faster they fall.</p>
+    <p>When a task hits the bottom, you missed it. The goal is to keep everything off the floor.</p>
+    <ul>
+      <li><span>↓</span><span>Tasks fall at speeds proportional to their deadline</span></li>
+      <li><span>🎨</span><span>Color shifts from dark to bright blue as urgency increases</span></li>
+      <li><span>⚡</span><span>Priority view surfaces anything within 40% of its deadline</span></li>
+      <li><span>⚠</span><span>Alerts fire at 30% time remaining</span></li>
+      <li><span>📁</span><span>Organize tasks into projects — Personal, Work, House, and more</span></li>
+    </ul>
+    <button class="btn-about-close" onclick="toggleAbout()">Got it</button>
+  </div>
+</div>
 </body>
 </html>
