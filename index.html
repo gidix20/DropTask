@@ -1600,7 +1600,7 @@ document.addEventListener("click", e => {
   }
 });
 
-function submitFeedback() {
+async function submitFeedback() {
   const good    = document.getElementById("fb-good").value.trim();
   const improve = document.getElementById("fb-improve").value.trim();
   const other   = document.getElementById("fb-other").value.trim();
@@ -1613,31 +1613,35 @@ function submitFeedback() {
   }
 
   document.getElementById("fb-error").style.display = "none";
-
-  // Populate hidden native form and submit to invisible iframe (no CORS issues)
-  document.getElementById("fb-hidden-name").value    = name || "Anonymous";
-  document.getElementById("fb-hidden-good").value    = good;
-  document.getElementById("fb-hidden-improve").value = improve;
-  document.getElementById("fb-hidden-other").value   = other;
-
   const submitBtn = document.getElementById("btn-fb-submit");
   submitBtn.disabled = true;
   submitBtn.textContent = "Sending…";
 
-  // Listen for iframe load = Formspree responded
-  const iframe = document.getElementById("fb-iframe");
-  iframe.onload = () => {
+  try {
+    const res = await fetch("https://limebrine.com/submit-droptask.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name:    name || "Anonymous",
+        good,
+        improve,
+        other
+      })
+    });
+    if (!res.ok) throw new Error("Server error " + res.status);
     document.getElementById("fb-form").style.display = "none";
     document.getElementById("fb-success").style.display = "block";
     ["fb-name","fb-good","fb-improve","fb-other"].forEach(id => {
       document.getElementById(id).value = "";
     });
+  } catch(err) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Send ↗";
-    iframe.onload = null;
-  };
-
-  document.getElementById("fb-native-form").submit();
+    document.getElementById("fb-error").textContent = "Error: " + err.message;
+    document.getElementById("fb-error").style.display = "block";
+  }
+  submitBtn.disabled = false;
+  submitBtn.textContent = "Send ↗";
 }
 
 
