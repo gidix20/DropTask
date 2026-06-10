@@ -86,13 +86,13 @@
     }
 
     .sidebar-label {
-      font-size: 10px; color: var(--muted);
+      font-size: 10px; color: #9b9b9b;
       text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
       white-space: nowrap;
     }
 
     .btn-collapse {
-      background: none; border: none; color: var(--muted);
+      background: none; border: none; color: #9b9b9b;
       cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px;
       transition: color 0.15s; flex-shrink: 0;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -103,7 +103,7 @@
     #sidebar-open-btn {
       position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
       background: var(--surface2); border: 1px solid var(--border);
-      color: var(--muted); width: 28px; height: 28px; border-radius: 6px;
+      color: #9b9b9b; width: 28px; height: 28px; border-radius: 6px;
       font-size: 13px; cursor: pointer; display: none;
       align-items: center; justify-content: center; z-index: 9;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -150,8 +150,8 @@
     }
 
     .btn-new-project {
-      width: 100%; background: none; border: 1px dashed #2a2a2a;
-      color: var(--muted); padding: 7px; border-radius: 7px;
+      width: 100%; background: none; border: 1px dashed #444;
+      color: #9b9b9b; padding: 7px; border-radius: 7px;
       font-size: 11px; cursor: pointer; transition: all 0.15s;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
       white-space: nowrap;
@@ -207,14 +207,14 @@
     /* ── Lanes ── */
     .lane {
       flex: 1 1 0; border-right: 1px solid var(--border);
-      position: relative; height: 100%; min-width: 130px;
+      position: relative; height: 100%; min-width: 0;
     }
     .lane:last-child { border-right: none; }
 
     /* All-Tasks view: project group containers */
     .project-group {
       display: flex; flex-direction: column;
-      border-right: 2px solid #2a2a2a; min-width: 130px;
+      border-right: 2px solid #2a2a2a; min-width: 0; flex: 1 1 0;
     }
     .project-group:last-child { border-right: none; }
 
@@ -337,7 +337,7 @@
       0%,100% { transform: translateY(-6px); opacity: 0.4; }
       50% { transform: translateY(6px); opacity: 1; }
     }
-    #empty-state p { font-size: 13px; color: #2a2a2a; letter-spacing: 0.03em; }
+    #empty-state p { font-size: 13px; color: #9b9b9b; letter-spacing: 0.03em; }
 
     /* ── Notification banner ── */
     #notif {
@@ -623,7 +623,7 @@
 <div class="main-area">
 
   <!-- Sidebar -->
-  <div class="sidebar" id="sidebar">
+  <div class="sidebar collapsed" id="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-label">Projects</span>
       <button class="btn-collapse" onclick="toggleSidebar()" title="Collapse">←</button>
@@ -639,7 +639,7 @@
   </div>
 
   <!-- Sidebar open button (visible when collapsed) -->
-  <button id="sidebar-open-btn" onclick="toggleSidebar()" title="Open projects">☰</button>
+  <button id="sidebar-open-btn" class="show" onclick="toggleSidebar()" title="Open projects">☰</button>
 
   <!-- Arena -->
   <div id="arena">
@@ -747,9 +747,9 @@ const DEFAULT_PROJECTS = [
 // ─────────────────────────────────────────────
 let projects = [];
 let tasks    = [];
-let activeProjectId  = "priority";
+let activeProjectId  = "all";
 let lastActiveProjectId = null;
-let sidebarOpen = true;
+let sidebarOpen = false;
 
 let warnedTasks    = new Set();
 let lastAllViewKey = "";
