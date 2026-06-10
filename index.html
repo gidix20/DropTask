@@ -479,6 +479,69 @@
     .hint { font-size: 10px; color: #333; text-align: right; margin-top: 7px; }
 
 
+    /* ── Feedback ── */
+    #feedback-btn {
+      position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: 20px;
+      background: #1e1e1e; border: 1px solid #2e2e2e;
+      color: #888; padding: 8px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      z-index: 150; transition: all 0.2s; letter-spacing: 0.03em;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      display: flex; align-items: center; gap: 6px;
+    }
+    #feedback-btn:hover { background: #252525; border-color: #3e3e3e; color: #bbb; }
+
+    #feedback-panel {
+      position: fixed; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); right: 20px;
+      width: 300px; max-width: calc(100vw - 32px);
+      background: #161616; border: 1px solid #282828;
+      border-radius: 14px; padding: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      z-index: 151;
+      transform: translateY(12px) scale(0.97);
+      opacity: 0; pointer-events: none;
+      transition: all 0.2s cubic-bezier(0.34,1.4,0.64,1);
+    }
+    #feedback-panel.open {
+      transform: translateY(0) scale(1);
+      opacity: 1; pointer-events: all;
+    }
+    #feedback-panel h3 { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
+    #feedback-panel .fb-sub { font-size: 11px; color: #555; margin-bottom: 14px; }
+    .fb-field { margin-bottom: 11px; }
+    .fb-field label {
+      display: block; font-size: 10px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px;
+    }
+    .fb-field input, .fb-field textarea {
+      width: 100%; background: #0d0d0d; border: 1px solid #272727;
+      color: var(--text); padding: 8px 10px; border-radius: 7px;
+      font-size: 12px; outline: none; font-family: inherit;
+      transition: border-color 0.15s; resize: none;
+    }
+    .fb-field input:focus, .fb-field textarea:focus { border-color: var(--urgent); }
+    .fb-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .btn-fb-cancel {
+      flex: 1; background: #1e1e1e; color: #666; border: none;
+      padding: 8px; border-radius: 7px; font-size: 12px;
+      cursor: pointer; touch-action: manipulation;
+    }
+    .btn-fb-submit {
+      flex: 2; background: var(--urgent); color: #000; border: none;
+      padding: 8px; border-radius: 7px; font-size: 12px;
+      font-weight: 700; cursor: pointer; touch-action: manipulation;
+      transition: opacity 0.15s;
+    }
+    .btn-fb-submit:hover { opacity: 0.85; }
+    .btn-fb-submit:disabled { opacity: 0.4; cursor: default; }
+    #fb-success { text-align: center; padding: 10px 0; display: none; }
+    #fb-success .fb-check { font-size: 28px; margin-bottom: 6px; }
+    #fb-success p { font-size: 12px; color: #888; }
+    #fb-error {
+      font-size: 11px; color: #f87171;
+      margin-top: 6px; display: none; text-align: center;
+    }
+
     /* ── About ── */
     .btn-about {
       background: none; border: 1px solid #2a2a2a; color: #555;
@@ -1514,10 +1577,110 @@ function aboutOverlayClick(e) {
   if (e.target === document.getElementById("about-overlay")) toggleAbout();
 }
 
+// ─────────────────────────────────────────────
+//  Feedback
+// ─────────────────────────────────────────────
+
+function toggleFeedback() {
+  const panel = document.getElementById("feedback-panel");
+  const isOpen = panel.classList.contains("open");
+  if (isOpen) {
+    panel.classList.remove("open");
+  } else {
+    document.getElementById("fb-form").style.display = "";
+    document.getElementById("fb-success").style.display = "none";
+    document.getElementById("fb-error").style.display = "none";
+    document.getElementById("btn-fb-submit").disabled = false;
+    panel.classList.add("open");
+  }
+}
+
+document.addEventListener("click", e => {
+  const panel = document.getElementById("feedback-panel");
+  const btn   = document.getElementById("feedback-btn");
+  if (panel && btn && panel.classList.contains("open") &&
+      !panel.contains(e.target) && !btn.contains(e.target)) {
+    panel.classList.remove("open");
+  }
+});
+
+async function submitFeedback() {
+  const good    = document.getElementById("fb-good").value.trim();
+  const improve = document.getElementById("fb-improve").value.trim();
+  const other   = document.getElementById("fb-other").value.trim();
+  const name    = document.getElementById("fb-name").value.trim();
+
+  if (!good && !improve && !other) {
+    document.getElementById("fb-error").textContent = "Please fill in at least one field.";
+    document.getElementById("fb-error").style.display = "block";
+    return;
+  }
+
+  document.getElementById("fb-error").style.display = "none";
+  const submitBtn = document.getElementById("btn-fb-submit");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Sending…";
+
+  try {
+    const res = await fetch("https://limebrine.com/submit-droptask.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name || "Anonymous", good, improve, other })
+    });
+    if (!res.ok) throw new Error("Server error " + res.status);
+    document.getElementById("fb-form").style.display = "none";
+    document.getElementById("fb-success").style.display = "block";
+    ["fb-name","fb-good","fb-improve","fb-other"].forEach(id => {
+      document.getElementById(id).value = "";
+    });
+  } catch(err) {
+    document.getElementById("fb-error").textContent = "Error: " + err.message;
+    document.getElementById("fb-error").style.display = "block";
+  }
+  submitBtn.disabled = false;
+  submitBtn.textContent = "Send ↗";
+}
+
 </script>
 
 
 
+
+<!-- Feedback button -->
+<button id="feedback-btn" onclick="toggleFeedback()">💬 Feedback</button>
+
+<!-- Feedback panel -->
+<div id="feedback-panel">
+  <h3>Share Feedback</h3>
+  <p class="fb-sub">Help shape Drop Task — all fields optional except one.</p>
+  <div id="fb-form">
+    <div class="fb-field">
+      <label>Your name (optional)</label>
+      <input id="fb-name" type="text" placeholder="Anonymous is fine" maxlength="60">
+    </div>
+    <div class="fb-field">
+      <label>What's working well? ✦</label>
+      <textarea id="fb-good" rows="2" placeholder="What do you like so far?"></textarea>
+    </div>
+    <div class="fb-field">
+      <label>What could be better?</label>
+      <textarea id="fb-improve" rows="2" placeholder="Bugs, confusion, missing features…"></textarea>
+    </div>
+    <div class="fb-field">
+      <label>Anything else?</label>
+      <textarea id="fb-other" rows="2" placeholder="Other thoughts, ideas, reactions…"></textarea>
+    </div>
+    <div id="fb-error"></div>
+    <div class="fb-actions">
+      <button class="btn-fb-cancel" onclick="toggleFeedback()">Cancel</button>
+      <button class="btn-fb-submit" id="btn-fb-submit" onclick="submitFeedback()">Send ↗</button>
+    </div>
+  </div>
+  <div id="fb-success">
+    <div class="fb-check">✓</div>
+    <p>Thanks — feedback received!</p>
+  </div>
+</div>
 
 <!-- About modal -->
 <div id="about-overlay" onclick="aboutOverlayClick(event)">
