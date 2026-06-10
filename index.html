@@ -1215,7 +1215,7 @@ function updateArena() {
     card.classList.toggle("critical", pct <= 0.05 && pct > 0 && !task.expired);
 
     document.getElementById(`ptag-${task.id}`).textContent =
-      activeProjectId === "priority" ? getProjectName(task.projectId) : "";
+      (activeProjectId === "priority" || activeProjectId === "all") ? getProjectName(task.projectId) : "";
 
     // Update lane header (non-all views)
     if (activeProjectId !== "all") {
