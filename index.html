@@ -495,6 +495,75 @@
     .hint { font-size: 10px; color: #333; text-align: right; margin-top: 7px; }
 
 
+    /* ── Delete project button ── */
+    .btn-delete-project {
+      background: none; border: none; color: #333; font-size: 14px;
+      cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+      opacity: 0; transition: opacity 0.15s, color 0.15s;
+      touch-action: manipulation;
+    }
+    .project-item:hover .btn-delete-project { opacity: 1; }
+    .btn-delete-project:hover { color: #f87171 !important; }
+
+    /* ── Claude parser ── */
+    #parse-btn {
+      position: fixed; bottom: 28px; left: 20px;
+      background: #1a1a2e; border: 1px solid #38BDF8;
+      color: #38BDF8; padding: 8px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      z-index: 150; transition: all 0.2s; letter-spacing: 0.03em;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      display: flex; align-items: center; gap: 6px;
+    }
+    #parse-btn:hover { background: #38BDF8; color: #000; }
+
+    #parse-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 200; display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    #parse-overlay.open { display: flex; }
+    #parse-modal {
+      background: #161616; border: 1px solid #282828;
+      border-radius: 16px; padding: 24px; width: 100%; max-width: 480px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    #parse-modal h3 { font-size: 15px; font-weight: 800; }
+    #parse-modal p  { font-size: 12px; color: #666; line-height: 1.5; }
+    #parse-text {
+      width: 100%; background: #0d0d0d; border: 1px solid #272727;
+      color: var(--text); padding: 10px 12px; border-radius: 8px;
+      font-size: 12px; outline: none; font-family: inherit;
+      resize: vertical; min-height: 100px;
+      transition: border-color 0.15s;
+    }
+    #parse-text:focus { border-color: #38BDF8; }
+    #parse-key-row {
+      display: flex; align-items: center; gap: 8px;
+    }
+    #parse-key-row label { font-size: 10px; color: #555; white-space: nowrap; }
+    #parse-key {
+      flex: 1; background: #0d0d0d; border: 1px solid #272727;
+      color: var(--text); padding: 6px 10px; border-radius: 6px;
+      font-size: 11px; outline: none; font-family: monospace;
+    }
+    #parse-key:focus { border-color: #38BDF8; }
+    #parse-actions { display: flex; gap: 8px; }
+    .btn-parse-cancel {
+      flex: 1; background: #1e1e1e; color: #666; border: none;
+      padding: 9px; border-radius: 8px; font-size: 12px; cursor: pointer;
+      touch-action: manipulation;
+    }
+    .btn-parse-go {
+      flex: 2; background: #38BDF8; color: #000; border: none;
+      padding: 9px; border-radius: 8px; font-size: 12px;
+      font-weight: 700; cursor: pointer; touch-action: manipulation;
+      transition: opacity 0.15s;
+    }
+    .btn-parse-go:hover { opacity: 0.85; }
+    .btn-parse-go:disabled { opacity: 0.4; cursor: default; }
+    #parse-status { font-size: 11px; color: #555; text-align: center; min-height: 16px; }
+
     /* ── Feedback ── */
     #feedback-btn {
       position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: 20px;
@@ -863,6 +932,7 @@ function renderSidebar() {
       <div class="project-dot" style="background:${color}"></div>
       <div class="project-name">${esc(p.name)}</div>
       ${count > 0 ? `<div class="project-count">${count}</div>` : ""}
+      <button class="btn-delete-project" onclick="deleteProject(event,'${p.id}')" title="Delete project">×</button>
     </div>`;
   });
 
@@ -940,6 +1010,138 @@ document.getElementById("new-project-input").addEventListener("keydown", e => {
   if (e.key === "Enter") confirmAddProject();
   if (e.key === "Escape") hideAddProject();
 });
+
+function deleteProject(e, id) {
+  e.stopPropagation();
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  const taskCount = tasks.filter(t => t.projectId === id && !t.completed).length;
+  const msg = taskCount > 0
+    ? `Delete "${p.name}"? Its ${taskCount} active task${taskCount>1?"s":""} will also be deleted.`
+    : `Delete "${p.name}"?`;
+  if (!confirm(msg)) return;
+  // Remove tasks in this project
+  tasks = tasks.filter(t => t.projectId !== id);
+  saveTasks();
+  // Remove project
+  projects = projects.filter(x => x.id !== id);
+  saveProjects();
+  // If we were viewing this project, switch to All Tasks
+  if (activeProjectId === id) setActiveProject("all");
+  else renderSidebar();
+}
+
+// ─────────────────────────────────────────────
+//  Claude task parser
+// ─────────────────────────────────────────────
+
+function openParseModal() {
+  const stored = localStorage.getItem("dt_api_key") || "";
+  document.getElementById("parse-key").value = stored;
+  document.getElementById("parse-text").value = "";
+  document.getElementById("parse-status").textContent = "";
+  document.getElementById("btn-parse-go").disabled = false;
+  document.getElementById("parse-overlay").classList.add("open");
+  document.getElementById("parse-text").focus();
+}
+
+function closeParseModal() {
+  document.getElementById("parse-overlay").classList.remove("open");
+}
+
+document.getElementById("parse-overlay").addEventListener("click", e => {
+  if (e.target === document.getElementById("parse-overlay")) closeParseModal();
+});
+
+async function runParse() {
+  const text = document.getElementById("parse-text").value.trim();
+  const key  = document.getElementById("parse-key").value.trim();
+  if (!text) { document.getElementById("parse-status").textContent = "Paste some text first."; return; }
+  if (!key)  { document.getElementById("parse-status").textContent = "Enter your Anthropic API key."; return; }
+
+  localStorage.setItem("dt_api_key", key);
+  const btn = document.getElementById("btn-parse-go");
+  btn.disabled = true;
+  document.getElementById("parse-status").textContent = "Parsing…";
+
+  const projectList = projects.map(p => `${p.id}: ${p.name}`).join("\n");
+  const today = new Date().toISOString().split("T")[0];
+
+  const prompt = `You are a task parser for a task management app called Drop Task.
+Today is ${today}.
+
+The user has the following projects:
+${projectList || "(none)"}
+
+Parse the text below into tasks. For each task return a JSON object with:
+- "name": short task name (max 60 chars)
+- "deadline": ISO 8601 datetime string (make a reasonable estimate based on context; default to 7 days from today if unclear)
+- "projectId": the matching project id from the list above, or the first project id if unclear
+
+Return ONLY a JSON array of task objects, no explanation.
+
+Text to parse:
+${text}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || "API error " + res.status);
+    }
+
+    const data = await res.json();
+    const raw  = data.content[0].text.trim();
+    const jsonStr = raw.startsWith("[") ? raw : raw.match(/\[[\s\S]*\]/)?.[0];
+    if (!jsonStr) throw new Error("Could not parse response.");
+
+    const parsed = JSON.parse(jsonStr);
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("No tasks found.");
+
+    const defaultProjectId = projects[0]?.id || null;
+    let created = 0;
+    parsed.forEach(item => {
+      if (!item.name) return;
+      const deadline = new Date(item.deadline).getTime();
+      if (isNaN(deadline)) return;
+      const projectId = projects.find(p => p.id === item.projectId)?.id || defaultProjectId;
+      if (!projectId) return;
+      tasks.push({
+        id: "t_" + Date.now() + "_" + Math.random().toString(36).slice(2),
+        name: item.name,
+        deadline,
+        projectId,
+        createdAt: Date.now(),
+        completed: false,
+        expired: false,
+        lane: nextLaneInProject(projectId)
+      });
+      created++;
+    });
+
+    saveTasks();
+    document.getElementById("parse-status").textContent = `✓ Created ${created} task${created !== 1 ? "s" : ""}.`;
+    renderSidebar();
+    setTimeout(closeParseModal, 1200);
+  } catch(err) {
+    document.getElementById("parse-status").textContent = "Error: " + err.message;
+  }
+  btn.disabled = false;
+}
 
 // ─────────────────────────────────────────────
 //  Lane management
@@ -1662,6 +1864,27 @@ async function submitFeedback() {
 
 
 
+
+<!-- Claude parser button -->
+<button id="parse-btn" onclick="openParseModal()">✦ Parse with AI</button>
+
+<!-- Claude parser modal -->
+<div id="parse-overlay">
+  <div id="parse-modal">
+    <h3>✦ Parse tasks with Claude</h3>
+    <p>Paste anything — an email, a list, meeting notes — and Claude will extract tasks and deadlines automatically.</p>
+    <textarea id="parse-text" placeholder="Paste text here…"></textarea>
+    <div id="parse-key-row">
+      <label>Anthropic API key</label>
+      <input id="parse-key" type="password" placeholder="sk-ant-…">
+    </div>
+    <div id="parse-status"></div>
+    <div id="parse-actions">
+      <button class="btn-parse-cancel" onclick="closeParseModal()">Cancel</button>
+      <button class="btn-parse-go" onclick="runParse()">Parse & Create Tasks</button>
+    </div>
+  </div>
+</div>
 
 <!-- Feedback button -->
 <button id="feedback-btn" onclick="toggleFeedback()">💬 Feedback</button>
