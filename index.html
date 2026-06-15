@@ -1259,10 +1259,9 @@ ${text}`;
       created++;
     });
 
-    saveTasks();
-    document.getElementById("parse-status").textContent = `✓ Created ${created} task${created !== 1 ? "s" : ""}.`;
+    save();
     renderSidebar();
-    setTimeout(closeParseModal, 1200);
+    closeParseModal();
   } catch(err) {
     document.getElementById("parse-status").textContent = "Error: " + err.message;
   }
@@ -2136,7 +2135,7 @@ function fmtRemaining(ms) {
     <div id="parse-status"></div>
     <div id="parse-actions">
       <button class="btn-parse-cancel" onclick="closeParseModal()">Cancel</button>
-      <button class="btn-parse-go" id="btn-parse-go" onclick="runParse()">Parse & Create Tasks</button>
+      <button class="btn-parse-go" id="btn-parse-go" onclick="runParse()">Create Tasks</button>
     </div>
   </div>
 </div>
