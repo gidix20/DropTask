@@ -1144,7 +1144,7 @@ function deleteProject(e, id) {
   if (!confirm(msg)) return;
   // Remove tasks in this project
   tasks = tasks.filter(t => t.projectId !== id);
-  saveTasks();
+  save();
   // Remove project
   projects = projects.filter(x => x.id !== id);
   saveProjects();
@@ -1366,7 +1366,10 @@ function createCard(task) {
     `<button class="btn-done" onclick="completeTask('${task.id}')" title="Mark done">✓</button>`;
 
   const nameEl = card.querySelector(`#name-${task.id}`);
-  nameEl.addEventListener("dblclick", () => startEditName(task.id));
+  nameEl.addEventListener("dblclick", () => openDetailModal(task.id));
+  card.addEventListener("dblclick", e => {
+    if (!e.target.closest("button")) openDetailModal(task.id);
+  });
   nameEl.addEventListener("blur",     () => finishEditName(task.id));
   nameEl.addEventListener("keydown", e => {
     if (e.key === "Enter")  { e.preventDefault(); nameEl.blur(); }
@@ -2008,7 +2011,7 @@ function openMoveTask(e, taskId) {
     item.onclick = (ev) => {
       ev.stopPropagation();
       task.projectId = p.id;
-      saveTasks();
+      save();
       renderSidebar();
       popup.remove();
     };
@@ -2084,7 +2087,7 @@ function saveDetailModal() {
   if (newName) task.name = newName;
   task.projectId = document.getElementById("detail-project").value;
 
-  saveTasks();
+  save();
   renderSidebar();
 
   // Update card name immediately
@@ -2106,7 +2109,7 @@ function deleteFromDetail() {
   if (!task) return;
   if (!confirm(`Delete "${task.name}"?`)) return;
   tasks = tasks.filter(t => t.id !== id);
-  saveTasks();
+  save();
   renderSidebar();
   document.getElementById("card-" + id)?.remove();
   closeDetailModal();
