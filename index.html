@@ -522,6 +522,69 @@
     .hint { font-size: 10px; color: #333; text-align: right; margin-top: 7px; }
 
 
+    /* ── Task detail modal ── */
+    #detail-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      z-index: 300; display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    #detail-overlay.open { display: flex; }
+    #detail-modal {
+      background: #161616; border: 1px solid #282828;
+      border-radius: 16px; padding: 28px; width: 100%; max-width: 420px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    #detail-modal .dm-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    #detail-modal .dm-header h3 { font-size: 13px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.08em; }
+    #detail-modal .dm-close {
+      background: none; border: none; color: #555; font-size: 20px;
+      cursor: pointer; line-height: 1; padding: 0 4px;
+    }
+    #detail-modal .dm-close:hover { color: #bbb; }
+    #detail-name {
+      width: 100%; background: #0d0d0d; border: 1px solid #2a2a2a;
+      color: var(--text); padding: 10px 12px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; outline: none; font-family: inherit;
+      transition: border-color 0.15s; resize: none; min-height: 60px;
+    }
+    #detail-name:focus { border-color: var(--urgent); }
+    .dm-row { display: flex; flex-direction: column; gap: 5px; }
+    .dm-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.08em; }
+    #detail-project {
+      background: #0d0d0d; border: 1px solid #2a2a2a; color: var(--text);
+      padding: 8px 10px; border-radius: 8px; font-size: 13px; outline: none;
+      font-family: inherit; width: 100%;
+    }
+    #detail-project:focus { border-color: var(--urgent); }
+    .dm-deadline-display {
+      background: #0d0d0d; border: 1px solid #2a2a2a;
+      color: var(--text); padding: 8px 12px; border-radius: 8px;
+      font-size: 13px; cursor: pointer; transition: border-color 0.15s;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .dm-deadline-display:hover { border-color: #444; }
+    .dm-time-left { font-size: 11px; color: #555; }
+    .dm-actions { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+    .dm-btn-save {
+      flex: 2; background: var(--urgent); color: #000; border: none;
+      padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.15s; touch-action: manipulation;
+    }
+    .dm-btn-save:hover { opacity: 0.85; }
+    .dm-btn-done {
+      flex: 1; background: #1e3a1e; color: #4ade80; border: 1px solid #2d5a2d;
+      padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; touch-action: manipulation;
+    }
+    .dm-btn-done:hover { background: #254d25; }
+    .dm-btn-delete {
+      background: none; border: 1px solid #3a1a1a; color: #f87171;
+      padding: 10px 14px; border-radius: 8px; font-size: 13px;
+      cursor: pointer; touch-action: manipulation;
+    }
+    .dm-btn-delete:hover { background: #3a1a1a; }
+
     /* ── Delete project button ── */
     .btn-delete-project {
       background: none; border: none; color: #333; font-size: 14px;
@@ -751,6 +814,33 @@
 <div id="notif"></div>
 
 <!-- Overdue popup -->
+<!-- Task detail modal -->
+<div id="detail-overlay" onclick="detailOverlayClick(event)">
+  <div id="detail-modal">
+    <div class="dm-header">
+      <h3>Task Detail</h3>
+      <button class="dm-close" onclick="closeDetailModal()">×</button>
+    </div>
+    <textarea id="detail-name" rows="2" maxlength="200" placeholder="Task name…"></textarea>
+    <div class="dm-row">
+      <div class="dm-label">Project</div>
+      <select id="detail-project"></select>
+    </div>
+    <div class="dm-row">
+      <div class="dm-label">Deadline</div>
+      <div class="dm-deadline-display" onclick="openCalForTask(window._detailTaskId)">
+        <span id="detail-deadline-text">—</span>
+        <span id="detail-time-left" class="dm-time-left"></span>
+      </div>
+    </div>
+    <div class="dm-actions">
+      <button class="dm-btn-save" onclick="saveDetailModal()">Save Changes</button>
+      <button class="dm-btn-done" onclick="doneFromDetail()">Mark Done ✓</button>
+      <button class="dm-btn-delete" onclick="deleteFromDetail()">Delete</button>
+    </div>
+  </div>
+</div>
+
 <div id="popup-overlay">
   <div class="popup">
     <div class="popup-icon">⚡</div>
@@ -1093,20 +1183,33 @@ async function runParse() {
   document.getElementById("parse-status").textContent = "Parsing…";
 
   const projectList = projects.map(p => `${p.id}: ${p.name}`).join("\n");
-  const today = new Date().toISOString().split("T")[0];
+  const nowDate = new Date();
+  const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const todayStr = nowDate.toISOString().split("T")[0];
+  const todayDay = dayNames[nowDate.getDay()];
 
   const prompt = `You are a task parser for a task management app called Drop Task.
-Today is ${today}.
+Today is ${todayStr} (${todayDay}).
+
+IMPORTANT date rules:
+- When a day name is mentioned (e.g. "Tuesday"), use the NEXT occurrence of that day from today (not today itself, not 2 weeks away).
+- "End of day" means 17:00 (5pm) on that date.
+- "Tomorrow" means ${new Date(nowDate.getTime()+86400000).toISOString().split("T")[0]}.
+- If no deadline is mentioned, default to 7 days from today at 17:00.
+- Never create a deadline in the past.
 
 The user has the following projects:
 ${projectList || "(none)"}
 
-Parse the text below into tasks. For each task return a JSON object with:
-- "name": short task name (max 60 chars)
-- "deadline": ISO 8601 datetime string (make a reasonable estimate based on context; default to 7 days from today if unclear)
-- "projectId": the matching project id from the list above, or the first project id if unclear
+Instructions:
+- Only extract clear, actionable tasks — skip vague notes, questions, or non-tasks.
+- Deduplicate: if two items mean the same task, include it only once.
+- For each task return a JSON object with:
+  - "name": short task name (max 60 chars, action-oriented)
+  - "deadline": ISO 8601 datetime string
+  - "projectId": the best matching project id from the list above, or the first project id if unclear
 
-Return ONLY a JSON array of task objects, no explanation.
+Return ONLY a valid JSON array of task objects, no explanation, no markdown.
 
 Text to parse:
 ${text}`;
@@ -1260,8 +1363,7 @@ function createCard(task) {
     `<div class="task-name" contenteditable="false" id="name-${task.id}">${esc(task.name)}</div>` +
     `<button class="task-deadline-btn" id="dl-${task.id}" onclick="openCalForTask('${task.id}')"></button>` +
     `<div class="task-time" id="tt-${task.id}"></div>` +
-    `<button class="btn-edit" onclick="startEditName('${task.id}')" title="Edit name">✎</button>` +
-    `<button class="btn-move" onclick="openMoveTask(event,'${task.id}')" title="Move to project">⊞</button>` +
+    `<button class="btn-edit" onclick="openDetailModal('${task.id}')" title="View / edit task">↗</button>` +
     `<button class="btn-done" onclick="completeTask('${task.id}')" title="Mark done">✓</button>`;
 
   const nameEl = card.querySelector(`#name-${task.id}`);
@@ -1766,7 +1868,7 @@ function initSelects() {
 document.addEventListener("keydown", e => {
   const modalOpen = document.getElementById("modal-overlay").classList.contains("open");
   const calOpen   = document.getElementById("cal-overlay").classList.contains("open");
-  if (e.key==="Escape") { closeModal(); closeCal(); closePopup(); hideAddProject(); return; }
+  if (e.key==="Escape") { closeModal(); closeCal(); closePopup(); hideAddProject(); closeDetailModal(); return; }
   if (!modalOpen && !calOpen && e.key.toLowerCase()==="n"
       && document.activeElement.tagName!=="INPUT"
       && !document.activeElement.isContentEditable
@@ -1928,6 +2030,96 @@ function openMoveTask(e, taskId) {
       document.removeEventListener("click", handler);
     }, { once: true });
   }, 0);
+}
+
+// ─────────────────────────────────────────────
+//  Task detail modal
+// ─────────────────────────────────────────────
+
+window._detailTaskId = null;
+
+function openDetailModal(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  window._detailTaskId = id;
+
+  // Name
+  document.getElementById("detail-name").value = task.name;
+
+  // Project dropdown
+  const sel = document.getElementById("detail-project");
+  sel.innerHTML = projects.map((p, i) =>
+    `<option value="${p.id}" ${p.id === task.projectId ? "selected" : ""}>${p.name}</option>`
+  ).join("");
+
+  // Deadline display
+  const dl = new Date(task.deadline);
+  document.getElementById("detail-deadline-text").textContent =
+    dl.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric", year:"numeric" }) +
+    " " + dl.toLocaleTimeString(undefined, { hour:"numeric", minute:"2-digit" });
+
+  // Time remaining
+  const rem = task.deadline - Date.now();
+  document.getElementById("detail-time-left").textContent =
+    rem <= 0 ? "Overdue" : fmtRemaining(rem);
+
+  document.getElementById("detail-overlay").classList.add("open");
+  setTimeout(() => document.getElementById("detail-name").focus(), 80);
+}
+
+function closeDetailModal() {
+  document.getElementById("detail-overlay").classList.remove("open");
+  window._detailTaskId = null;
+}
+
+function detailOverlayClick(e) {
+  if (e.target === document.getElementById("detail-overlay")) closeDetailModal();
+}
+
+function saveDetailModal() {
+  const id = window._detailTaskId;
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+
+  const newName = document.getElementById("detail-name").value.trim();
+  if (newName) task.name = newName;
+  task.projectId = document.getElementById("detail-project").value;
+
+  saveTasks();
+  renderSidebar();
+
+  // Update card name immediately
+  const nameEl = document.getElementById("name-" + id);
+  if (nameEl) nameEl.textContent = task.name;
+
+  closeDetailModal();
+}
+
+function doneFromDetail() {
+  const id = window._detailTaskId;
+  closeDetailModal();
+  completeTask(id);
+}
+
+function deleteFromDetail() {
+  const id = window._detailTaskId;
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  if (!confirm(`Delete "${task.name}"?`)) return;
+  tasks = tasks.filter(t => t.id !== id);
+  saveTasks();
+  renderSidebar();
+  document.getElementById("card-" + id)?.remove();
+  closeDetailModal();
+}
+
+function fmtRemaining(ms) {
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h left`;
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
 }
 
 </script>
