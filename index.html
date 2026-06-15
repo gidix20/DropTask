@@ -1068,8 +1068,6 @@ function deleteProject(e, id) {
 // ─────────────────────────────────────────────
 
 function openParseModal() {
-  const stored = localStorage.getItem("dt_api_key") || "";
-  document.getElementById("parse-key").value = stored;
   document.getElementById("parse-text").value = "";
   document.getElementById("parse-status").textContent = "";
   document.getElementById("btn-parse-go").disabled = false;
@@ -1088,11 +1086,8 @@ document.addEventListener("click", e => {
 
 async function runParse() {
   const text = document.getElementById("parse-text").value.trim();
-  const key  = document.getElementById("parse-key").value.trim();
   if (!text) { document.getElementById("parse-status").textContent = "Paste some text first."; return; }
-  if (!key)  { document.getElementById("parse-status").textContent = "Enter your Anthropic API key."; return; }
 
-  localStorage.setItem("dt_api_key", key);
   const btn = document.getElementById("btn-parse-go");
   btn.disabled = true;
   document.getElementById("parse-status").textContent = "Parsing…";
@@ -1117,14 +1112,9 @@ Text to parse:
 ${text}`;
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://limebrine.com/claude-proxy.php", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-haiku-4-5",
         max_tokens: 1024,
@@ -1951,10 +1941,6 @@ function openMoveTask(e, taskId) {
     <h3>✦ Parse tasks with Claude</h3>
     <p>Paste anything — an email, a list, meeting notes — and Claude will extract tasks and deadlines automatically.</p>
     <textarea id="parse-text" placeholder="Paste text here…"></textarea>
-    <div id="parse-key-row">
-      <label>Anthropic API key</label>
-      <input id="parse-key" type="password" placeholder="sk-ant-…">
-    </div>
     <div id="parse-status"></div>
     <div id="parse-actions">
       <button class="btn-parse-cancel" onclick="closeParseModal()">Cancel</button>
