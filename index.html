@@ -1188,12 +1188,26 @@ async function runParse() {
   const todayStr = nowDate.toISOString().split("T")[0];
   const todayDay = dayNames[nowDate.getDay()];
 
+  // Pre-calculate the next occurrence of each day name so Claude doesn't have to
+  const nextDay = {};
+  dayNames.forEach(name => {
+    const targetDow = dayNames.indexOf(name);
+    let diff = targetDow - nowDate.getDay();
+    if (diff <= 0) diff += 7;
+    const d = new Date(nowDate); d.setDate(d.getDate() + diff);
+    nextDay[name] = d.toISOString().split("T")[0];
+  });
+  const dayLookup = dayNames.map(n => `  ${n} = ${nextDay[n]}`).join("\n");
+
   const prompt = `You are a task parser for a task management app called Drop Task.
 Today is ${todayStr} (${todayDay}).
 
+Upcoming day lookup — use these exact dates, do not calculate yourself:
+${dayLookup}
+
 IMPORTANT date rules:
-- When a day name is mentioned (e.g. "Tuesday"), use the NEXT occurrence of that day from today (not today itself, not 2 weeks away).
-- "End of day" means 17:00 (5pm) on that date.
+- Use the lookup table above for any day name mentioned.
+- "End of day" means 17:00 on that date.
 - "Tomorrow" means ${new Date(nowDate.getTime()+86400000).toISOString().split("T")[0]}.
 - If no deadline is mentioned, default to 7 days from today at 17:00.
 - Never create a deadline in the past.
