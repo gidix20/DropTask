@@ -322,6 +322,33 @@
     .task-card:hover .btn-done { opacity: 1; }
     .btn-done:hover { background: rgba(255,255,255,0.35); }
 
+    .btn-move {
+      position: absolute; bottom: 6px; left: 6px;
+      background: none; border: none; color: #fff;
+      width: 22px; height: 22px; border-radius: 5px; cursor: pointer;
+      font-size: 13px; display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s, background 0.15s;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    .task-card:hover .btn-move { opacity: 0.5; }
+    .btn-move:hover { background: rgba(255,255,255,0.2); opacity: 1 !important; }
+
+    .move-popup {
+      position: absolute; z-index: 100;
+      background: #1e1e1e; border: 1px solid #333;
+      border-radius: 8px; padding: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      min-width: 130px;
+    }
+    .move-popup-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 10px; border-radius: 5px; cursor: pointer;
+      font-size: 12px; font-weight: 600; transition: background 0.1s;
+      white-space: nowrap;
+    }
+    .move-popup-item:hover { background: #2e2e2e; }
+    .move-popup-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
     /* ── Empty state ── */
     #empty-state {
       position: absolute; inset: 0; display: none;
@@ -506,16 +533,15 @@
     .btn-delete-project:hover { color: #f87171 !important; }
 
     /* ── Claude parser ── */
-    #parse-btn {
-      position: fixed; bottom: 28px; left: 20px;
+    .btn-parse-header {
       background: #1a1a2e; border: 1px solid #38BDF8;
-      color: #38BDF8; padding: 8px 14px; border-radius: 20px;
-      font-size: 12px; font-weight: 600; cursor: pointer;
-      z-index: 150; transition: all 0.2s; letter-spacing: 0.03em;
+      color: #38BDF8; padding: 6px 12px; border-radius: 7px;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+      transition: all 0.2s; letter-spacing: 0.03em;
       touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap;
     }
-    #parse-btn:hover { background: #38BDF8; color: #000; }
+    .btn-parse-header:hover { background: #38BDF8; color: #000; }
 
     #parse-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.7);
@@ -685,6 +711,7 @@
   </div>
   <div class="header-right">
     <span id="task-count"></span>
+    <button class="btn-parse-header" id="parse-btn" onclick="openParseModal()" title="Parse tasks with Claude">✦ AI</button>
     <button class="btn-add" id="btn-add-task" onclick="openModal()">+ Add Task</button>
   </div>
 </header>
@@ -808,8 +835,8 @@ const PROJECT_COLORS = [
 const DEFAULT_PROJECTS = [
   { id: "p_personal", name: "Personal" },
   { id: "p_work",     name: "Work"     },
-  { id: "p_house",    name: "House"    },
 ];
+const REQUIRED_PROJECTS = ["p_personal", "p_work"];
 
 // ─────────────────────────────────────────────
 //  State
@@ -850,6 +877,11 @@ function load() {
     projects = JSON.parse(JSON.stringify(DEFAULT_PROJECTS));
   }
   if (!projects.length) projects = JSON.parse(JSON.stringify(DEFAULT_PROJECTS));
+  // Always ensure Work and Personal exist
+  DEFAULT_PROJECTS.forEach(dp => {
+    if (!projects.find(p => p.id === dp.id)) projects.unshift(dp);
+  });
+  saveProjects();
 
   // Migrate tasks without projectId → first project
   const defaultPid = projects[0].id;
@@ -1049,8 +1081,9 @@ function closeParseModal() {
   document.getElementById("parse-overlay").classList.remove("open");
 }
 
-document.getElementById("parse-overlay").addEventListener("click", e => {
-  if (e.target === document.getElementById("parse-overlay")) closeParseModal();
+document.addEventListener("click", e => {
+  const overlay = document.getElementById("parse-overlay");
+  if (overlay && overlay.classList.contains("open") && e.target === overlay) closeParseModal();
 });
 
 async function runParse() {
@@ -1238,6 +1271,7 @@ function createCard(task) {
     `<button class="task-deadline-btn" id="dl-${task.id}" onclick="openCalForTask('${task.id}')"></button>` +
     `<div class="task-time" id="tt-${task.id}"></div>` +
     `<button class="btn-edit" onclick="startEditName('${task.id}')" title="Edit name">✎</button>` +
+    `<button class="btn-move" onclick="openMoveTask(event,'${task.id}')" title="Move to project">⊞</button>` +
     `<button class="btn-done" onclick="completeTask('${task.id}')" title="Mark done">✓</button>`;
 
   const nameEl = card.querySelector(`#name-${task.id}`);
@@ -1860,13 +1894,56 @@ async function submitFeedback() {
   submitBtn.textContent = "Send ↗";
 }
 
+// ─────────────────────────────────────────────
+//  Move task to project
+// ─────────────────────────────────────────────
+function openMoveTask(e, taskId) {
+  e.stopPropagation();
+  // Remove any existing popup
+  document.querySelectorAll(".move-popup").forEach(p => p.remove());
+
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const popup = document.createElement("div");
+  popup.className = "move-popup";
+
+  projects.forEach((p, i) => {
+    const color = PROJECT_COLORS[i % PROJECT_COLORS.length];
+    const item = document.createElement("div");
+    item.className = "move-popup-item";
+    if (p.id === task.projectId) item.style.opacity = "0.4";
+    item.innerHTML = `<div class="move-popup-dot" style="background:${color}"></div>${esc(p.name)}`;
+    item.onclick = (ev) => {
+      ev.stopPropagation();
+      task.projectId = p.id;
+      saveTasks();
+      renderSidebar();
+      popup.remove();
+    };
+    popup.appendChild(item);
+  });
+
+  const card = document.getElementById("card-" + taskId);
+  card.style.position = "relative";
+  card.appendChild(popup);
+  // Position above the move button
+  popup.style.bottom = "30px";
+  popup.style.left = "4px";
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener("click", function handler() {
+      popup.remove();
+      document.removeEventListener("click", handler);
+    }, { once: true });
+  }, 0);
+}
+
 </script>
 
 
 
-
-<!-- Claude parser button -->
-<button id="parse-btn" onclick="openParseModal()">✦ Parse with AI</button>
 
 <!-- Claude parser modal -->
 <div id="parse-overlay">
