@@ -178,7 +178,7 @@
     /* ── Arena ── */
     #arena {
       flex: 1; display: flex;
-      overflow-x: hidden; overflow-y: hidden;
+      overflow-x: auto; overflow-y: hidden;
       position: relative;
     }
 
@@ -207,14 +207,14 @@
     /* ── Lanes ── */
     .lane {
       flex: 1 1 0; border-right: 1px solid var(--border);
-      position: relative; height: 100%; min-width: 0;
+      position: relative; height: 100%; min-width: 160px;
     }
     .lane:last-child { border-right: none; }
 
     /* All-Tasks view: project group containers */
     .project-group {
       display: flex; flex-direction: column;
-      border-right: 2px solid #2a2a2a; min-width: 0; flex: 1 1 0;
+      border-right: 2px solid #2a2a2a; min-width: 160px; flex: 1 1 160px;
     }
     .project-group:last-child { border-right: none; }
 
@@ -292,7 +292,7 @@
     }
 
     .task-deadline-btn {
-      font-size: 10px; color: rgba(255,255,255,0.55);
+      font-size: 10px; color: rgba(255,255,255,1);
       background: none; border: none; cursor: pointer;
       padding: 0; text-align: left; font-variant-numeric: tabular-nums;
     }
@@ -833,6 +833,10 @@
         <span id="detail-time-left" class="dm-time-left"></span>
       </div>
     </div>
+    <div class="dm-row">
+      <div class="dm-label">Notes</div>
+      <textarea id="detail-notes" rows="3" placeholder="Add notes…" style="width:100%;background:#0d0d0d;border:1px solid #2a2a2a;color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;outline:none;font-family:inherit;resize:vertical;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--urgent)'" onblur="this.style.borderColor='#2a2a2a'"></textarea>
+    </div>
     <div class="dm-actions">
       <button class="dm-btn-save" onclick="saveDetailModal()">Save Changes</button>
       <button class="dm-btn-done" onclick="doneFromDetail()">Mark Done ✓</button>
@@ -900,6 +904,10 @@
       </div>
     </div>
     <div class="field-error" id="err-deadline">Deadline must be in the future.</div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="f-notes" rows="2" placeholder="Any extra detail…" style="width:100%;background:#0d0d0d;border:1px solid #2a2a2a;color:var(--text);padding:8px 10px;border-radius:7px;font-size:12px;outline:none;font-family:inherit;resize:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--urgent)'" onblur="this.style.borderColor='#2a2a2a'"></textarea>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-submit" onclick="submitTask()">Drop It ↓</button>
@@ -1415,8 +1423,8 @@ function checkAlarms() {
     if (pct <= 0.30 && pct > 0 && !warnedTasks.has(task.id)) {
       warnedTasks.add(task.id);
       tryPlaySound(ALERT_SRC, 0.8);
-      showBanner(`⚠ "${task.name}" — 30% time left!`, true);
-      osNotify("⚠ Deadline Warning", `"${task.name}" has 30% time remaining.`);
+      showBanner(`⚠ "${task.name}" is almost due!`, true);
+      osNotify("⚠ Almost Due", `"${task.name}" is almost due!`);
     }
 
     // Hit bottom
@@ -1442,7 +1450,14 @@ function buildAllViewDOM(visible) {
   const arena = document.getElementById("arena");
   const emptyState = document.getElementById("empty-state");
 
-  const activeProjects = projects.filter(p => visible.some(t => t.projectId === p.id));
+  const now = Date.now();
+  const activeProjects = projects
+    .filter(p => visible.some(t => t.projectId === p.id))
+    .sort((a, b) => {
+      const minA = Math.min(...visible.filter(t => t.projectId === a.id).map(t => t.deadline));
+      const minB = Math.min(...visible.filter(t => t.projectId === b.id).map(t => t.deadline));
+      return minA - minB;
+    });
 
   // Build stable key: if structure unchanged, skip DOM rebuild
   const key = activeProjects.map(p =>
@@ -1807,6 +1822,7 @@ function openModal() {
   document.getElementById("f-date").value = tomorrow.toISOString().split("T")[0];
   document.getElementById("f-date").min   = today.toISOString().split("T")[0];
   document.getElementById("f-name").value = "";
+  document.getElementById("f-notes").value = "";
   document.getElementById("f-hour").value = "11";
   document.getElementById("f-min").value  = "55";
   document.getElementById("f-ampm").value = "PM";
@@ -1846,7 +1862,8 @@ function submitTask() {
   const now = Date.now();
   tasks.push({
     id: `t${now}_${Math.random().toString(36).slice(2,6)}`,
-    name, projectId: projId, createdAt: now, deadline,
+    name, notes: document.getElementById("f-notes").value.trim(),
+    projectId: projId, createdAt: now, deadline,
     completed: false, expired: false, notified: false,
     lane: nextLaneInProject(projId)
   });
@@ -2061,6 +2078,7 @@ function openDetailModal(id) {
 
   // Name
   document.getElementById("detail-name").value = task.name;
+  document.getElementById("detail-notes").value = task.notes || "";
 
   // Project dropdown
   const sel = document.getElementById("detail-project");
@@ -2099,6 +2117,7 @@ function saveDetailModal() {
 
   const newName = document.getElementById("detail-name").value.trim();
   if (newName) task.name = newName;
+  task.notes = document.getElementById("detail-notes").value.trim();
   task.projectId = document.getElementById("detail-project").value;
 
   save();
